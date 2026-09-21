@@ -2,14 +2,14 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import type { RpcContext, RpcMethod } from '../rpc/core'
+import { eraseRpcMethods, type RpcContext, type RpcMethod } from '../rpc/core'
 import { NOTIFICATION_METHODS } from '../rpc/methods/notifications'
 import { DeviceRegistry } from '../device-registry'
 import { OrcaRuntimeRpcServer } from '../runtime-rpc'
 import { OrcaRuntimeService } from '../orca-runtime'
 
 function method(name: string): RpcMethod {
-  const found = NOTIFICATION_METHODS.find((candidate) => candidate.name === name)
+  const found = eraseRpcMethods(NOTIFICATION_METHODS).find((candidate) => candidate.name === name)
   if (!found || 'stream' in found) {
     throw new Error(`${name} is not a one-shot RPC method`)
   }
@@ -30,6 +30,7 @@ function contextFor(overrides: Partial<RpcContext>): RpcContext {
         registered: true,
         registrationId: 'reg-1'
       })),
+      testMobilePushDevice: vi.fn(async () => ({ accepted: true })),
       unregisterMobilePushDevice: vi.fn(async () => ({ unregistered: true }))
     },
     ...overrides
@@ -152,5 +153,27 @@ describe('revokeMobileDevice', () => {
 
     expect(await server.revokeMobileDevice(device.deviceId)).toBe(true)
     expect(server.getPushUnregisterOutbox().pending()).toEqual([])
+  })
+})
+
+describe('notifications.testPush', () => {
+  it('targets the authenticated phone and returns the service result', async () => {
+    const ctx = contextFor({ clientKind: 'mobile', pairedDeviceId: 'device-1' })
+    expect(await method('notifications.testPush').handler(null, ctx)).toEqual({ accepted: true })
+    expect(ctx.runtime.testMobilePushDevice).toHaveBeenCalledWith('device-1')
+  })
+  it('refuses callers without an authenticated mobile identity', async () => {
+    for (const overrides of [
+      {},
+      { clientKind: 'mobile' as const },
+      { clientKind: 'runtime' as const, pairedDeviceId: 'device-1' }
+    ]) {
+      const ctx = contextFor(overrides)
+      expect(await method('notifications.testPush').handler(null, ctx)).toEqual({
+        accepted: false,
+        reason: 'not_registered'
+      })
+      expect(ctx.runtime.testMobilePushDevice).not.toHaveBeenCalled()
+    }
   })
 })

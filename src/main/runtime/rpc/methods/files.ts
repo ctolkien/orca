@@ -1,4 +1,4 @@
-import { defineMethod, defineStreamingMethod, type RpcAnyMethod } from '../core'
+import { defineMethod, defineStreamingMethod } from '../core'
 import { runFileWatchStream } from './file-watch-stream-lifecycle'
 import { FILE_MUTATION_METHODS } from './files-mutation-methods'
 import { remoteFileContentBudget } from './files-remote-content-budget'
@@ -7,6 +7,7 @@ import { limitQuickOpenSearchReplyBySerializedBytes } from '../../../../shared/q
 import { FileOpen, WorktreeSelector } from './files-target-schemas'
 import { FILE_TERMINAL_ARTIFACT_METHODS } from './files-terminal-artifact-methods'
 import {
+  FilePathsExist,
   DocPreviewFileRead,
   FileListAll,
   FileOpenDiff,
@@ -21,7 +22,7 @@ import {
 
 let filesWatchSubscriptionSeq = 0
 
-export const FILE_METHODS: RpcAnyMethod[] = [
+export const FILE_METHODS = [
   defineMethod({
     name: 'files.list',
     params: WorktreeSelector,
@@ -163,6 +164,12 @@ export const FILE_METHODS: RpcAnyMethod[] = [
     name: 'files.listMarkdownDocuments',
     params: WorktreeSelector,
     handler: async (params, { runtime }) => runtime.listRuntimeMarkdownDocuments(params.worktree)
+  }),
+  defineMethod({
+    name: 'files.pathsExist',
+    params: FilePathsExist,
+    handler: async (params, { runtime }) =>
+      runtime.pathsExistRuntimeFiles(params.worktree, params.relativePaths)
   }),
   defineMethod({
     name: 'files.stat',

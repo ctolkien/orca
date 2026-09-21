@@ -18,7 +18,7 @@ import {
   projectTurnItemEvent,
   projectTurnItemHistory
 } from './structured-agent-session-turn-item-capability'
-import { defineMethod, defineStreamingMethod, type RpcAnyMethod, type RpcContext } from '../core'
+import { defineMethod, defineStreamingMethod, type RpcContext } from '../core'
 import {
   ensureStructuredHostInstalled as ensureHostInstalled,
   requireStructuredCapability,
@@ -34,6 +34,7 @@ import {
 } from './structured-agent-session-create'
 import { STRUCTURED_AGENT_SESSION_HOLD_METHODS } from './structured-agent-session-hold'
 import { STRUCTURED_AGENT_SESSION_REVEAL_METHODS } from './structured-agent-session-reveal'
+import { STRUCTURED_AGENT_SESSION_RESTART_RESUME_METHODS } from './structured-agent-session-restart-resume'
 import { resolveUncommittedStructuredCreate } from './structured-agent-session-precommit-refusal'
 import {
   bindStructuredAgentSessionStream,
@@ -91,7 +92,7 @@ async function attachClientSuppliedLocation(
   return host.attach(callerFor(ctx), attachParams)
 }
 
-export const STRUCTURED_AGENT_SESSION_METHODS: RpcAnyMethod[] = [
+export const STRUCTURED_AGENT_SESSION_METHODS = [
   defineMethod({
     name: 'agentSession.rewind',
     params: RewindParams,
@@ -326,5 +327,6 @@ export const STRUCTURED_AGENT_SESSION_METHODS: RpcAnyMethod[] = [
   }),
   ...STRUCTURED_AGENT_SESSION_HOLD_METHODS,
   ...STRUCTURED_AGENT_SESSION_REVEAL_METHODS,
+  ...STRUCTURED_AGENT_SESSION_RESTART_RESUME_METHODS,
   ...STRUCTURED_AGENT_SESSION_STATUS_METHODS
 ]

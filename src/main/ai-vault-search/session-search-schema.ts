@@ -1,4 +1,5 @@
 import { mkdirSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 import SyncDatabase from '../sqlite/sync-database'
 import { removeTreeSync } from '../../shared/windows-transient-lock-removal'
@@ -10,7 +11,7 @@ import { removeTreeSync } from '../../shared/windows-transient-lock-removal'
 // policy, decided where the wire is.
 
 // Bump to drop and rebuild: the index is a cache over the transcripts, never a source.
-export const SESSION_SEARCH_SCHEMA_VERSION = 5
+export const SESSION_SEARCH_SCHEMA_VERSION = 6
 
 // unicode61 keeps `_ . - /` inside tokens so paths and identifiers match exactly;
 // the `identifiers` column carries the split form (see session-search-identifier-split).
@@ -57,7 +58,18 @@ CREATE TABLE IF NOT EXISTS files(
   byte_offset INTEGER NOT NULL,
   mtime_ms REAL NOT NULL,
   size_bytes INTEGER,
-  session_row_id INTEGER
+  session_row_id INTEGER,
+  -- What this row still owes a reader, so that nothing has to be remembered
+  -- between passes. 'current': the rows match the file at the stat recorded
+  -- here. 'due': the index is behind on content it cannot reach by appending,
+  -- so the next pass reads the file whole. 'failed': the last read did not
+  -- commit, and the two columns below are what stop it being retried for ever.
+  state TEXT NOT NULL DEFAULT 'current',
+  fail_count INTEGER NOT NULL DEFAULT 0,
+  -- The mtime the failures were observed at. A file that fails at one stat is
+  -- left alone once it has failed enough times, and only a change to this stat
+  -- can mean the file itself changed, so it is the whole retry policy.
+  failed_mtime_ms REAL
 );
 -- Retention walks the expiring end of this column; without it that is a full scan and a sort.
 CREATE INDEX IF NOT EXISTS files_mtime ON files(mtime_ms);
@@ -120,6 +132,10 @@ function openExisting(path: string): SyncDatabase {
       db = openWithPragmas(path)
     }
     db.exec(SCHEMA_SQL)
+    db.prepare('INSERT OR IGNORE INTO meta(key, value) VALUES (?, ?)').run(
+      'index_incarnation',
+      randomUUID()
+    )
     db.prepare('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)').run(
       'schema_version',
       String(SESSION_SEARCH_SCHEMA_VERSION)

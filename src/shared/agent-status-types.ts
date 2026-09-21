@@ -5,6 +5,7 @@
 import type { AgentProviderSessionMetadata } from './agent-session-resume'
 import type { OrchestrationFleetAttention } from './orchestration-fleet-attention'
 import type { AgentStatusRowFacets } from './agent-status-observation'
+import type { TuiAgent } from './tui-agent'
 import {
   normalizeInteractivePromptField,
   normalizeOptionalField,
@@ -26,30 +27,9 @@ export const AGENT_STATUS_STATES = ['working', 'blocked', 'waiting', 'done'] as 
 export type AgentStatusState = (typeof AGENT_STATUS_STATES)[number]
 export type AgentWorkingMode = 'monitoring'
 // Why: agent types aren't a fixed set (custom agents exist); any non-empty string is
-// accepted — these well-known names are just a convenience union for pattern-matching.
-export type WellKnownAgentType =
-  | 'claude'
-  | 'openclaude'
-  | 'codex'
-  | 'gemini'
-  | 'antigravity'
-  | 'amp'
-  | 'opencode'
-  | 'mimo-code'
-  | 'cursor'
-  | 'copilot'
-  | 'aider'
-  | 'pi'
-  | 'omp'
-  | 'prime-agent'
-  | 'droid'
-  | 'command-code'
-  | 'grok'
-  | 'hermes'
-  | 'devin'
-  | 'ante'
-  | 'trae'
-  | 'unknown'
+// accepted — the well-known names are the launchable TuiAgent ids plus the 'unknown'
+// sentinel (no agent identified yet), a convenience union for pattern-matching.
+export type WellKnownAgentType = TuiAgent | 'unknown'
 export type AgentType = WellKnownAgentType | (string & {})
 
 /** A snapshot of a previous agent state, used to render activity blocks.
@@ -124,6 +104,8 @@ export type AgentStatusEntry = {
   agentType?: AgentType
   /** Provider model currently used by this session. */
   model?: string
+  /** Command installed by the running OMP extension; absent on older hosts. */
+  modelSwitchCommand?: 'orca-model'
   /** Composite key: `${tabId}:${leafId}` where leafId is a stable UUID layout leaf. */
   paneKey: string
   /** Runtime terminal handle for matching retained parent rows when the parent
@@ -190,6 +172,7 @@ export type AgentStatusPayload = {
   prompt?: string
   agentType?: AgentType
   model?: string
+  modelSwitchCommand?: 'orca-model'
   toolName?: string
   toolInput?: string
   /** JSON string of the AskUserQuestion tool input, captured live. See the
@@ -234,6 +217,7 @@ export function pickParsedAgentStatusPayload(
     prompt: row.prompt,
     ...(row.agentType !== undefined ? { agentType: row.agentType } : {}),
     ...(row.model !== undefined ? { model: row.model } : {}),
+    ...(row.modelSwitchCommand ? { modelSwitchCommand: row.modelSwitchCommand } : {}),
     ...(row.toolName !== undefined ? { toolName: row.toolName } : {}),
     ...(row.toolInput !== undefined ? { toolInput: row.toolInput } : {}),
     ...(row.interactivePrompt !== undefined ? { interactivePrompt: row.interactivePrompt } : {}),
@@ -392,6 +376,9 @@ function normalizeAgentStatusObject(parsed: unknown): ParsedAgentStatusPayload |
     // Why: normalize like the other single-line fields so embedded newlines (e.g. `agentType: "claude\nrogue"`) can't break single-line UI and equality checks.
     agentType: normalizeOptionalField(obj.agentType, AGENT_TYPE_MAX_LENGTH),
     model: normalizeOptionalField(obj.model, AGENT_MODEL_MAX_LENGTH),
+    ...(obj.modelSwitchCommand === 'orca-model'
+      ? { modelSwitchCommand: 'orca-model' as const }
+      : {}),
     toolName: normalizeOptionalField(obj.toolName, AGENT_STATUS_TOOL_NAME_MAX_LENGTH),
     toolInput: normalizeOptionalField(obj.toolInput, AGENT_STATUS_TOOL_INPUT_MAX_LENGTH),
     interactivePrompt: normalizeInteractivePromptField(

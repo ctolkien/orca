@@ -3,19 +3,26 @@ import {
   normalizeOptionalField,
   normalizePromptField
 } from './agent-status-field-normalization'
-import type {
-  AgentJournalRenderItem,
-  AgentJournalSubmission,
-  AgentJournalToolCallItem
-} from './agent-session-journal-types'
+import type { AgentJournalRenderItem, AgentJournalSubmission } from './agent-session-journal-types'
 import {
   AGENT_STATUS_TOOL_INPUT_MAX_LENGTH,
   AGENT_STATUS_TOOL_NAME_MAX_LENGTH
 } from './agent-status-types'
 import { describeToolInput } from './native-chat-tool-summary'
-import { readAgentJournalTurn } from './agent-session-turn-record'
+import {
+  activeStructuredAgentSessionToolCall,
+  activeStructuredAgentSessionTurnId
+} from './structured-agent-session-live-turn'
+
 import type { NativeChatBlock, NativeChatMessage } from './native-chat-types'
 import { sha256 } from './sha256'
+
+// Re-exported so the live-turn readers' existing consumers keep one import site.
+export {
+  activeStructuredAgentSessionToolCall,
+  activeStructuredAgentSessionTurnId,
+  newestStructuredAgentSessionTurn
+} from './structured-agent-session-live-turn'
 
 function boundedText(payload: { head: string; truncated: boolean; byteLength: number }): string {
   return payload.truncated ? `${payload.head}\n… (${payload.byteLength} bytes)` : payload.head
@@ -131,10 +138,14 @@ const projectedItems = new WeakMap<AgentJournalRenderItem, NativeChatMessage | n
 export function projectStructuredItemsToNativeChat(
   items: readonly AgentJournalRenderItem[]
 ): NativeChatMessage[] {
-  return items.flatMap((item) => {
+  const messages: NativeChatMessage[] = []
+  items.forEach((item) => {
     const projected = projectStructuredItemToNativeChat(item)
-    return projected ? [projected] : []
+    if (projected) {
+      messages.push(projected)
+    }
   })
+  return messages
 }
 
 export function projectStructuredItemToNativeChat(
@@ -157,18 +168,6 @@ export function projectStructuredItemToNativeChat(
     : null
   projectedItems.set(item, message)
   return message
-}
-
-export function activeStructuredAgentSessionTurnId(
-  items: readonly AgentJournalRenderItem[]
-): string | null {
-  for (let index = items.length - 1; index >= 0; index -= 1) {
-    const turn = readAgentJournalTurn(items[index]?.body)
-    if (turn) {
-      return turn.state === 'running' ? turn.turnId : null
-    }
-  }
-  return null
 }
 
 export function hasPersistedStructuredAgentSessionTurn(
@@ -241,13 +240,20 @@ function messageProse(blocks: readonly NativeChatBlock[]): string {
 export function latestStructuredAgentSessionPrompt(
   items: readonly AgentJournalRenderItem[]
 ): string {
+  const body = latestStructuredAgentSessionUserItem(items)?.body
+  return body?.kind === 'message' ? messageProse(body.blocks) : ''
+}
+
+export function latestStructuredAgentSessionUserItem(
+  items: readonly AgentJournalRenderItem[]
+): AgentJournalRenderItem | null {
   for (let index = items.length - 1; index >= 0; index -= 1) {
-    const body = items[index]?.body
-    if (body?.kind === 'message' && body.role === 'user') {
-      return messageProse(body.blocks)
+    const item = items[index]
+    if (item?.body.kind === 'message' && item.body.role === 'user') {
+      return item
     }
   }
-  return ''
+  return null
 }
 
 /** The newest assistant prose in the latest user turn. Tool-only assistant items
@@ -268,24 +274,6 @@ export function latestStructuredAgentSessionAssistantMessage(
     }
   }
   return ''
-}
-
-/** The tool call the newest turn is still inside, or null when nothing is running.
- *  Scanning stops at the turn's own lifecycle row so an abandoned `running` call
- *  from an earlier crashed turn can never be reported as live work. */
-export function activeStructuredAgentSessionToolCall(
-  items: readonly AgentJournalRenderItem[]
-): AgentJournalToolCallItem | null {
-  for (let index = items.length - 1; index >= 0; index -= 1) {
-    const body = items[index]?.body
-    if (readAgentJournalTurn(body)) {
-      return null
-    }
-    if (body?.kind === 'tool-call' && body.state === 'running') {
-      return body
-    }
-  }
-  return null
 }
 
 /** The activity fields a sidebar row shows beside the prompt, named as the agent-status
