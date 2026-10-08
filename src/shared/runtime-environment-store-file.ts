@@ -14,6 +14,7 @@ import {
   readRuntimeEnvironmentSidecar,
   RuntimeEnvironmentSidecarInvalidError
 } from './runtime-environment-sidecar'
+import { readRuntimeEnvironmentPreferences } from './runtime-environment-preferences'
 import { hardenExistingSecureFile } from './secure-file'
 
 const ENVIRONMENTS_FILE = 'orca-environments.json'
@@ -67,7 +68,10 @@ export function readPersistedEnvironmentStore(
   }
 }
 
-/** Persisted environments with their sidecar state overlaid; stale sidecar entries are ignored. */
+/**
+ * Persisted environments with their sidecar state and preferences overlaid; stale sidecar entries
+ * are ignored.
+ */
 export function readEnvironmentStore(
   userDataPath: string,
   options: { requireStoreFile?: boolean } = {}
@@ -86,11 +90,13 @@ export function readEnvironmentStore(
     }
     throw error
   }
+  const preferences = readRuntimeEnvironmentPreferences(userDataPath)
   return {
     version: 1,
-    environments: store.environments.map((environment) =>
-      overlayRuntimeEnvironmentSidecar(environment, sidecar.entries[environment.id])
-    )
+    environments: store.environments.map((environment) => {
+      const known = overlayRuntimeEnvironmentSidecar(environment, sidecar.entries[environment.id])
+      return preferences.entries[environment.id]?.disabled ? { ...known, disabled: true } : known
+    })
   }
 }
 

@@ -18,6 +18,7 @@ import {
   writeRuntimeEnvironmentSidecarEntry
 } from './runtime-environment-sidecar'
 import { resolveEnvironmentFromStore } from './runtime-environment-store'
+import { writeRuntimeEnvironmentDisabledPreference } from './runtime-environment-preferences'
 
 /** Registers a server Orca deployed over SSH, paired through its own loopback tunnel. */
 export function addManagedOrcadEnvironment(
@@ -94,6 +95,12 @@ export function removeManagedOrcadEnvironment(userDataPath: string, environmentI
   const remaining = store.environments.filter((entry) => entry.id !== persisted.id)
   writeEnvironmentStore(userDataPath, { version: 1, environments: remaining })
   writeRuntimeEnvironmentSidecarEntry(userDataPath, remaining, persisted, null)
+  writeRuntimeEnvironmentDisabledPreference(
+    userDataPath,
+    remaining.map((entry) => entry.id),
+    persisted.id,
+    false
+  )
 }
 
 /** Keeps a managed server's pairing current after its orcad changed versions. */

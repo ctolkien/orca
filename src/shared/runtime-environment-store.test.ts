@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, truncateSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -10,8 +10,12 @@ import {
   listEnvironments,
   MAX_RUNTIME_ENVIRONMENT_STORE_FILE_BYTES,
   markEnvironmentUsed,
+  removeEnvironment,
+  resolveEnvironment,
+  setEnvironmentDisabled,
   updateEnvironmentFromPairingCode
 } from './runtime-environment-store'
+import { getRuntimeEnvironmentPreferencesPath } from './runtime-environment-preferences'
 
 function pairingCode(endpoint = 'ws://127.0.0.1:6768', pairedDeviceId?: string): string {
   return encodePairingOffer({
@@ -203,5 +207,54 @@ describe('runtime environment store', () => {
       })
     ).toThrow(RuntimeEnvironmentStoreError)
     expect(listEnvironments(userDataPath)).toEqual([first])
+  })
+  it('keeps a disabled host disabled across a re-pair and out of the environments file', () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'orca-runtime-env-store-disabled-'))
+    tempDirs.push(userDataPath)
+    const env = addEnvironmentFromPairingCode(userDataPath, {
+      name: 'laptop',
+      pairingCode: pairingCode()
+    })
+
+    expect(setEnvironmentDisabled(userDataPath, 'laptop', true)).toMatchObject({
+      id: env.id,
+      disabled: true
+    })
+    updateEnvironmentFromPairingCode(userDataPath, env.id, {
+      pairingCode: pairingCode('ws://192.0.2.10:6768')
+    })
+
+    expect(resolveEnvironment(userDataPath, env.id).disabled).toBe(true)
+    expect(listEnvironments(userDataPath)[0]!.disabled).toBe(true)
+    expect(readFileSync(getEnvironmentStorePath(userDataPath), 'utf8')).not.toContain('disabled')
+
+    expect(setEnvironmentDisabled(userDataPath, env.id, false)).not.toHaveProperty('disabled')
+    expect(listEnvironments(userDataPath)[0]).not.toHaveProperty('disabled')
+  })
+
+  it('drops a removed host from the preferences file', () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'orca-runtime-env-store-disabled-'))
+    tempDirs.push(userDataPath)
+    const kept = addEnvironmentFromPairingCode(userDataPath, {
+      name: 'kept',
+      pairingCode: pairingCode()
+    })
+    const removed = addEnvironmentFromPairingCode(userDataPath, {
+      name: 'removed',
+      pairingCode: pairingCode('ws://192.0.2.10:6768')
+    })
+    setEnvironmentDisabled(userDataPath, kept.id, true)
+    setEnvironmentDisabled(userDataPath, removed.id, true)
+
+    // Why: removal's durable sidecar fsync needs the real platform's open flags.
+    if (originalPlatform) {
+      Object.defineProperty(process, 'platform', originalPlatform)
+    }
+    removeEnvironment(userDataPath, removed.id)
+
+    const preferences = JSON.parse(
+      readFileSync(getRuntimeEnvironmentPreferencesPath(userDataPath), 'utf8')
+    )
+    expect(Object.keys(preferences.entries)).toEqual([kept.id])
   })
 })

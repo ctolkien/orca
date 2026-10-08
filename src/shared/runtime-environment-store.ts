@@ -15,6 +15,7 @@ import {
   writeEnvironmentStore
 } from './runtime-environment-store-file'
 import { writeRuntimeEnvironmentSidecarEntry } from './runtime-environment-sidecar'
+import { writeRuntimeEnvironmentDisabledPreference } from './runtime-environment-preferences'
 
 export {
   getEnvironmentStorePath,
@@ -85,7 +86,31 @@ export function removeEnvironment(userDataPath: string, selector: string): Known
   writeEnvironmentStore(userDataPath, { version: 1, environments: remaining })
   // A leftover entry would read as stale anyway; dropping it keeps the sidecar from growing.
   writeRuntimeEnvironmentSidecarEntry(userDataPath, remaining, persisted, null)
+  writeRuntimeEnvironmentDisabledPreference(
+    userDataPath,
+    remaining.map((entry) => entry.id),
+    environment.id,
+    false
+  )
   return environment
+}
+
+/** Persists whether the user turned a host off; the flag survives restarts and re-pairs. */
+export function setEnvironmentDisabled(
+  userDataPath: string,
+  selector: string,
+  disabled: boolean
+): KnownRuntimeEnvironment {
+  const store = readEnvironmentStore(userDataPath)
+  const environment = resolveEnvironmentFromStore(store, selector)
+  writeRuntimeEnvironmentDisabledPreference(
+    userDataPath,
+    store.environments.map((entry) => entry.id),
+    environment.id,
+    disabled
+  )
+  const { disabled: _previous, ...rest } = environment
+  return disabled ? { ...rest, disabled: true } : rest
 }
 
 export function updateEnvironmentFromPairingCode(
