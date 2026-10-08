@@ -118,6 +118,42 @@ describe('runtime-selector flags on locally pinned CLI commands', () => {
     expect(runtimeClientConstructorMock).toHaveBeenCalledWith(null, null)
   })
 
+  it('marks a disabled paired server in `host list` without dialing it', async () => {
+    pairRuntimeEnvironment(listEnvironmentsMock, 'env-m4air', 'm4air')
+    listEnvironmentsMock.mockReturnValue([
+      { ...listEnvironmentsMock()[0], disabled: true as const }
+    ])
+    queueSshTargetLookups(2)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await main(['host', 'list', '--json'], '/tmp/repo')
+    await main(['host', 'list'], '/tmp/repo')
+
+    const printed = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+    expect(printed.result.hosts.find((host: { id: string }) => host.id === 'env-m4air')).toEqual({
+      kind: 'environment',
+      name: 'm4air',
+      id: 'env-m4air',
+      selector: '--environment m4air',
+      disabled: true
+    })
+    expect(String(logSpy.mock.calls[1]?.[0])).toMatch(/orca server\s+m4air .*disabled/)
+    expect(runtimeClientConstructorMock).not.toHaveBeenCalledWith(null, 'm4air')
+  })
+
+  it('rejects `--environment` on `host disable` rather than routing it', async () => {
+    pairRuntimeEnvironment(listEnvironmentsMock, 'env-m4air', 'm4air')
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await main(['host', 'disable', 'm4air', '--environment', 'm4air', '--json'], '/tmp/repo')
+
+    const printed = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+    expect(printed.ok).toBe(false)
+    expect(printed.error.message).toContain('`--environment` does not retarget `orca host disable`')
+    expect(callMock).not.toHaveBeenCalled()
+    process.exitCode = 0
+  })
+
   it('reads and updates the name the answering runtime publishes', async () => {
     const runtime = fakeMachineNameRuntime('m4airs-Air')
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})

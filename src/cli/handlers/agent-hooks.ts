@@ -9,7 +9,6 @@ import {
   getDefaultUserDataPath
 } from '../runtime-client'
 import type { AgentHookInstallStatus } from '../../shared/agent-hook-types'
-import { DEFAULT_LOCAL_ORCA_PROFILE_ID } from '../../shared/orca-profiles'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import type { ProfileStateOfflineLocation } from '../../main/persistence/profile-state/profile-state-offline-settings'
 
@@ -34,13 +33,9 @@ async function getProfileStateLocation(): Promise<ProfileStateOfflineLocation | 
   return getActiveProfileStateLocation()
 }
 
-function legacyProfileStateLocation(): ProfileStateOfflineLocation {
-  const userDataPath = getDefaultUserDataPath()
-  return {
-    dataFile: join(userDataPath, 'orca-data.json'),
-    databaseFile: join(userDataPath, 'profile-state.db'),
-    profileId: DEFAULT_LOCAL_ORCA_PROFILE_ID
-  }
+async function legacyProfileStateLocation(): Promise<ProfileStateOfflineLocation> {
+  const { legacyProfileStateLocation: resolveLegacy } = await import('../profile-state-location.js')
+  return resolveLegacy()
 }
 
 async function readHookSettingsFromDisk(): Promise<
@@ -62,7 +57,7 @@ async function readAdmittedHookSettingsFromDisk(): Promise<
   const { readAgentHookSettingsFromProfileState } =
     await import('../../main/persistence/profile-state/profile-state-offline-settings.js')
   return readAgentHookSettingsFromProfileState(
-    (await getProfileStateLocation()) ?? legacyProfileStateLocation()
+    (await getProfileStateLocation()) ?? (await legacyProfileStateLocation())
   )
 }
 
@@ -92,7 +87,7 @@ async function updateAdmittedEnabledOnDisk(enabled: boolean): Promise<{
     await import('../../main/persistence/profile-state/profile-state-offline-settings.js')
   let location = await getProfileStateLocation()
   if (!location) {
-    const legacy = legacyProfileStateLocation()
+    const legacy = await legacyProfileStateLocation()
     const { classifyProfileStateStorage } =
       await import('../../main/persistence/profile-state/profile-state-storage-classification.js')
     const storage = classifyProfileStateStorage(legacy.dataFile, legacy.databaseFile)

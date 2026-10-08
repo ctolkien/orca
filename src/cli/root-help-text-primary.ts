@@ -33,6 +33,8 @@ export const ROOT_HELP_TEXT_PRIMARY = [
   '',
   'Hosts:',
   '  host list                 List targetable machines and how to name each one',
+  '  host disable              Stop connecting to a paired server without removing it',
+  '  host enable               Reconnect to a disabled paired server',
   '',
   'Environments:',
   '  environment add           Save a remote Orca runtime from a pairing code',

@@ -6,6 +6,7 @@ import {
   removeEnvironment as removeEnvironmentFromStore,
   resolveEnvironment as resolveEnvironmentFromStore,
   resolveEnvironmentPairingOffer as resolveEnvironmentPairingOfferFromStore,
+  setEnvironmentDisabled as setEnvironmentDisabledInStore,
   RuntimeEnvironmentStoreError,
   type RuntimeEnvironmentStoreErrorCode
 } from '../../shared/runtime-environment-store'
@@ -24,6 +25,10 @@ export type EnvironmentRemoveResult = {
   removed: PublicKnownRuntimeEnvironment
 }
 
+export type EnvironmentSetDisabledResult = {
+  environment: PublicKnownRuntimeEnvironment
+}
+
 export { getEnvironmentStorePath, listEnvironments }
 
 export function addEnvironmentFromPairingCode(
@@ -35,6 +40,14 @@ export function addEnvironmentFromPairingCode(
 
 export function removeEnvironment(userDataPath: string, selector: string): KnownRuntimeEnvironment {
   return translateStoreError(() => removeEnvironmentFromStore(userDataPath, selector))
+}
+
+export function setEnvironmentDisabled(
+  userDataPath: string,
+  selector: string,
+  disabled: boolean
+): KnownRuntimeEnvironment {
+  return translateStoreError(() => setEnvironmentDisabledInStore(userDataPath, selector, disabled))
 }
 
 export function resolveEnvironment(

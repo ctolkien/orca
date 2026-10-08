@@ -85,6 +85,7 @@ export type HostListEntry = {
   machineName?: string
   connected?: boolean
   connectionStatus?: string
+  disabled?: true
 }
 
 // Why: the selector column is the point of this command — the name alone is what callers already
@@ -114,6 +115,9 @@ export function formatHostName(result: HostNameResult): string {
 }
 
 function formatHostConnection(host: HostListEntry): string {
+  if (host.disabled) {
+    return 'disabled'
+  }
   if (host.kind !== 'ssh') {
     return ''
   }

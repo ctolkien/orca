@@ -18,8 +18,10 @@ import {
   listEnvironments,
   removeEnvironment,
   resolveEnvironment,
+  setEnvironmentDisabled,
   type EnvironmentAddResult,
-  type EnvironmentRemoveResult
+  type EnvironmentRemoveResult,
+  type EnvironmentSetDisabledResult
 } from '../runtime/environments'
 
 export const ENVIRONMENT_HANDLERS: Record<string, CommandHandler> = {
@@ -86,7 +88,8 @@ export const ENVIRONMENT_HANDLERS: Record<string, CommandHandler> = {
       kind: 'environment' as const,
       name: environment.name,
       id: environment.id,
-      selector: `--environment ${environment.name}`
+      selector: `--environment ${environment.name}`,
+      ...(environment.disabled ? { disabled: true as const } : {})
     }))
     const hosts = [
       {
@@ -101,6 +104,12 @@ export const ENVIRONMENT_HANDLERS: Record<string, CommandHandler> = {
       ...environments
     ]
     printResult(localSuccess({ hosts }), json, formatHostList)
+  },
+  'host disable': async ({ flags, json }) => {
+    await setHostDisabled(flags, json, true)
+  },
+  'host enable': async ({ flags, json }) => {
+    await setHostDisabled(flags, json, false)
   },
   'environment list': async ({ flags, json }) => {
     rejectLocalPairingStoreRetargeting(
@@ -129,6 +138,61 @@ export const ENVIRONMENT_HANDLERS: Record<string, CommandHandler> = {
       (result: EnvironmentRemoveResult) =>
         `Removed environment ${result.removed.name} (${result.removed.id}).`
     )
+  }
+}
+
+async function setHostDisabled(
+  flags: Map<string, string | boolean>,
+  json: boolean,
+  disabled: boolean
+): Promise<void> {
+  const verb = disabled ? 'disable' : 'enable'
+  rejectLocalPairingStoreRetargeting(
+    flags,
+    `\`orca host ${verb}\`. The flag is saved in this machine\u2019s pairing store, so there is no other host to ask.`,
+    `Run \`orca host ${verb}\` on that machine to change its own saved servers.`
+  )
+  const selector = getRequiredStringFlag(flags, 'selector')
+  const userDataPath = getDefaultUserDataPath()
+  const target = resolveEnvironment(userDataPath, selector)
+  if (disabled && (await readPersistedActiveRuntimeEnvironmentId()) === target.id) {
+    throw new RuntimeClientError(
+      'invalid_argument',
+      `${target.name} is the Active Server. Choose another Active Server in Settings > Remote Orca Servers > Advanced before disabling it.`
+    )
+  }
+  const environment = redactRuntimeEnvironment(
+    setEnvironmentDisabled(userDataPath, target.id, disabled)
+  )
+  printResult(
+    localSuccess({ environment }),
+    json,
+    (result: EnvironmentSetDisabledResult) =>
+      `${disabled ? 'Disabled' : 'Enabled'} ${result.environment.name} (${result.environment.id}).`
+  )
+}
+
+/** Main persists the Active Server in profile state; the CLI reads it the way agent hooks do. */
+async function readPersistedActiveRuntimeEnvironmentId(): Promise<string | null> {
+  const { getActiveProfileStateLocation, legacyProfileStateLocation } =
+    await import('../profile-state-location.js')
+  const { acquireProfileStateRuntimeAdmission } =
+    await import('../../main/persistence/profile-state/profile-state-access.js')
+  const { readActiveRuntimeEnvironmentIdFromProfileState } =
+    await import('../../main/persistence/profile-state/profile-state-offline-settings.js')
+  const admission = acquireProfileStateRuntimeAdmission(getDefaultUserDataPath())
+  try {
+    return readActiveRuntimeEnvironmentIdFromProfileState(
+      getActiveProfileStateLocation() ?? legacyProfileStateLocation()
+    )
+  } catch (error) {
+    // Fail closed: disabling the server that routes requests would strand them.
+    throw new RuntimeClientError(
+      'runtime_error',
+      `Could not confirm which server is the Active Server (${error instanceof Error ? error.message : String(error)}). Disable it from Settings > Remote Orca Servers instead.`
+    )
+  } finally {
+    admission.release()
   }
 }
 

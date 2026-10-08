@@ -40,10 +40,23 @@ export type AgentHookSettingsUpdate = {
 export function readAgentHookSettingsFromProfileState(
   location: ProfileStateOfflineLocation
 ): AgentHookSettings {
+  return readAgentHookSettingsFromSettingsValue(readSettingsValueFromProfileState(location))
+}
+
+/** The persisted Active Server; null when none is selected. */
+export function readActiveRuntimeEnvironmentIdFromProfileState(
+  location: ProfileStateOfflineLocation
+): string | null {
+  const settings = readSettingsValueFromProfileState(location)
+  const id = isRecord(settings) ? settings.activeRuntimeEnvironmentId : null
+  return typeof id === 'string' && id.trim() ? id.trim() : null
+}
+
+function readSettingsValueFromProfileState(location: ProfileStateOfflineLocation): unknown {
   const classification = classifyProfileStateStorage(location.dataFile, location.databaseFile)
   if (classification === 'json-only' || classification === 'neither') {
     assertProfileStateCanInitialize(location)
-    return readAgentHookSettingsFromJson(location.dataFile)
+    return readSettingsValueFromJson(location.dataFile)
   }
 
   assertSqliteCapability()
@@ -52,7 +65,7 @@ export function readAgentHookSettingsFromProfileState(
   if (result.kind === 'unreadable') {
     throw result.error
   }
-  return readAgentHookSettingsFromSettingsValue(result.values.get('settings'))
+  return result.values.get('settings')
 }
 
 /**
@@ -176,11 +189,10 @@ function assertAcceptedLegacyJson(
   }
 }
 
-function readAgentHookSettingsFromJson(dataFile: string): AgentHookSettings {
-  const settings = existsSync(dataFile)
+function readSettingsValueFromJson(dataFile: string): unknown {
+  return existsSync(dataFile)
     ? parseProfileStateRoot(readFileSync(dataFile, 'utf8')).settings
     : getDefaultPersistedState(homedir()).settings
-  return readAgentHookSettingsFromSettingsValue(settings)
 }
 
 function readAgentHookSettingsFromSettingsValue(value: unknown): AgentHookSettings {

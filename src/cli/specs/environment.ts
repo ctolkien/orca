@@ -24,10 +24,37 @@ export const ENVIRONMENT_COMMAND_SPECS: CommandSpec[] = [
       'SSH rows include the detected remote platform after that target has connected (linux, darwin, or win32); disconnected or older targets report platform unknown.',
       'SSH rows also include whether the target is currently connected and its lifecycle status when known.',
       'Paired-server rows come from the pairing store and report platform unknown; ask one server directly with `orca host name --environment <name>`.',
+      'A paired server turned off with `orca host disable` (or in Settings) is marked disabled, `disabled: true` in --json. Orca does not connect to it until it is enabled again.',
       "SSH targets are read from this machine's own Orca runtime, so this lists that machine's targets and not another server's. Run `orca host list` on the other machine to see the targets registered there.",
       '--environment and --pairing-code are rejected rather than ignored: paired servers come from this machine\u2019s pairing store, so a routed answer would describe two machines at once.'
     ],
     examples: ['orca host list', 'orca host list --json']
+  },
+  {
+    path: ['host', 'disable'],
+    summary: 'Stop Orca connecting to a paired server, without removing it',
+    usage: 'orca host disable <selector> [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'selector'],
+    positionalArgs: ['selector'],
+    notes: [
+      'The selector is the paired server\u2019s name or id, as shown by `orca host list`.',
+      'Disabled servers are never polled or dialed, and stay disabled across restarts and re-pairing. A running Orca app applies the change immediately.',
+      'The Active Server cannot be disabled; choose another one in Settings first.',
+      'Answers from this machine\u2019s pairing store, so --environment and --pairing-code are rejected.'
+    ],
+    examples: ['orca host disable laptop']
+  },
+  {
+    path: ['host', 'enable'],
+    summary: 'Let Orca connect to a disabled paired server again',
+    usage: 'orca host enable <selector> [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'selector'],
+    positionalArgs: ['selector'],
+    notes: [
+      'The selector is the paired server\u2019s name or id, as shown by `orca host list`.',
+      'A running Orca app reconnects to the server immediately.'
+    ],
+    examples: ['orca host enable laptop']
   },
   {
     path: ['environment', 'add'],

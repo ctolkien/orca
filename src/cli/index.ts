@@ -36,6 +36,9 @@ function shouldIgnoreRemoteSelection(commandPath: string[]): boolean {
     // answer (paired servers) is read from this machine's own pairing store and cannot be routed,
     // so routing the other half produced one listing describing two machines at once.
     commandPath.join(' ') === 'host list' ||
+    // The disabled flag lives in this machine's pairing store, like the rows `host list` reads.
+    commandPath.join(' ') === 'host disable' ||
+    commandPath.join(' ') === 'host enable' ||
     commandPath[0] === 'serve' ||
     commandPath[0] === 'agent' ||
     commandPath[0] === 'vm' ||
