@@ -89,6 +89,8 @@ describe('registerRuntimeEnvironmentHandlers', () => {
   let store: {
     getSettings: () => { activeRuntimeEnvironmentId: string | null }
     updateSettings: ReturnType<typeof vi.fn>
+    getWorkspaceSessionHostIds: () => string[]
+    removeWorkspaceSessionHost: ReturnType<typeof vi.fn>
   }
 
   beforeEach(() => {
@@ -98,7 +100,9 @@ describe('registerRuntimeEnvironmentHandlers', () => {
       getSettings: () => ({ activeRuntimeEnvironmentId }),
       updateSettings: vi.fn((updates: { activeRuntimeEnvironmentId: string | null }) => {
         activeRuntimeEnvironmentId = updates.activeRuntimeEnvironmentId
-      })
+      }),
+      getWorkspaceSessionHostIds: () => [],
+      removeWorkspaceSessionHost: vi.fn()
     }
     getPathMock.mockReset()
     getPathMock.mockReturnValue(userDataPath)
@@ -722,11 +726,7 @@ describe('registerRuntimeEnvironmentHandlers', () => {
 
     // A restart keeps it off: startup reloads the file before its activation loop.
     syncRuntimeEnvironmentDisabledIds([])
-    registerRuntimeEnvironmentHandlers({
-      ...store,
-      getWorkspaceSessionHostIds: () => [],
-      removeWorkspaceSessionHost: vi.fn()
-    } as never)
+    registerRuntimeEnvironmentHandlers(store as never)
     await new Promise((resolve) => setImmediate(resolve))
     expect(sendRemoteRuntimeRequestMock).not.toHaveBeenCalled()
 
