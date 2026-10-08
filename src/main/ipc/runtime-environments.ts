@@ -30,6 +30,7 @@ import { retirePairedRuntimeBrowserClientHostEnvironment } from '../browser/pair
 import { registerRuntimeEnvironmentBrowserClientHostHandler } from './runtime-environment-browser-client-host-handler'
 import { advanceRuntimeEnvironmentCapabilityIncarnation } from './runtime-environment-capability-evidence'
 import { watchRuntimeEnvironmentPreference } from './runtime-environment-preference'
+import { applyRuntimeEnvironmentDisabledPreferences } from './runtime-environment-disabled-state'
 
 const remoteRuntimeSubscriptions = new Map<string, RetainedRemoteRuntimeSubscription>()
 const getUserDataPath = (): string => app.getPath('userData')
@@ -87,7 +88,11 @@ let stopPreferenceWatch: (() => void) | undefined
 
 export function registerRuntimeEnvironmentHandlers(store: Store): void {
   stopPreferenceWatch?.()
-  stopPreferenceWatch = watchRuntimeEnvironmentPreference(store, getUserDataPath())
+  stopPreferenceWatch = watchRuntimeEnvironmentPreference(
+    store,
+    getUserDataPath(),
+    invalidateRuntimeEnvironmentTransport
+  )
   for (const pending of pendingSubscriptions.values()) {
     pending.close()
   }
@@ -112,6 +117,11 @@ export function registerRuntimeEnvironmentHandlers(store: Store): void {
   })
   registerRuntimeEnvironmentRecoveryHandler()
   registerRuntimeEnvironmentPassiveHandlers(getUserDataPath)
+  // Load the persisted disabled set before activation so a disabled host is never dialed.
+  applyRuntimeEnvironmentDisabledPreferences(
+    getUserDataPath(),
+    invalidateRuntimeEnvironmentTransport
+  )
   for (const environment of listEnvironments(getUserDataPath())) {
     if (!isRuntimeEnvironmentManuallyDisconnected(environment.id)) {
       getRuntimeEnvironmentStatusOwner(getUserDataPath(), environment.id).activate()

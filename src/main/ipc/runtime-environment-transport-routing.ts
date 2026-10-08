@@ -4,6 +4,7 @@ import { ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES } from '../../shared/electr
 import { resolveEnvironment, markEnvironmentUsed } from '../../shared/runtime-environment-store'
 import { resolveManagedRuntimeEnvironment } from './runtime-environment-managed-tunnel'
 import { recordRuntimeEnvironmentUsage } from './runtime-environment-usage-record'
+import { runtimeEnvironmentInactiveFailure } from './runtime-environment-manual-disconnect'
 import type {
   RuntimeOrchestrationEnvelope,
   RuntimeRpcResponse
@@ -54,6 +55,11 @@ export async function callRuntimeEnvironment(
     return failure ?? getRuntimeEnvironmentStatus(userDataPath, selector, timeoutMs, options)
   }
   const environment = resolveEnvironment(userDataPath, selector)
+  // Main-side fan-outs (vault scan, skills, previews) reach hosts without the IPC gate.
+  const inactive = runtimeEnvironmentInactiveFailure(environment, method)
+  if (inactive) {
+    return inactive
+  }
   // Why: connection failures reject (they don't resolve as ok:false), so the
   // Tailscale hint is applied to the thrown error here — wrapping the resolved
   // value would miss the in-use connect/timeout case the toast surfaces.
@@ -77,6 +83,11 @@ export async function callRuntimeEnvironment(
         )
         if (revisionFailure) {
           return revisionFailure
+        }
+        // The host can be disconnected or disabled while this call waited in the queue.
+        const queuedInactive = runtimeEnvironmentInactiveFailure(currentEnvironment, method)
+        if (queuedInactive) {
+          return queuedInactive
         }
         const pairing = getPreferredPairingOffer(currentEnvironment)
         endpoint = pairing.endpoint

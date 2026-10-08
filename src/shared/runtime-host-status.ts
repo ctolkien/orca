@@ -3,6 +3,8 @@ import type { RuntimeRpcFailure, RuntimeRpcResponse } from './runtime-rpc-envelo
 import type { RuntimeStatus } from './runtime-types'
 
 export const RUNTIME_HOST_STATUS_CHANNEL = 'runtimeEnvironments:statusChanged'
+/** Main -> renderer: the saved host list or a host's disabled flag changed; re-list. */
+export const RUNTIME_ENVIRONMENTS_CHANGED_CHANNEL = 'runtimeEnvironments:listChanged'
 
 /** Local client state; never exchanged with the paired host. */
 export type RuntimeHostStatusSnapshot = {

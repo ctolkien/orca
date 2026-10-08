@@ -6,6 +6,7 @@ export const RUNTIME_ENVIRONMENT_HANDLER_CHANNELS = [
   'runtimeEnvironments:remove',
   'runtimeEnvironments:disconnect',
   'runtimeEnvironments:connect',
+  'runtimeEnvironments:setDisabled',
   'runtimeEnvironments:retryControlConnection',
   'runtimeEnvironments:prepareBrowserClientHostPlacement',
   'runtimeEnvironments:getStatus',

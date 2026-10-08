@@ -3,7 +3,8 @@ import {
   addEnvironmentFromPairingCode,
   listEnvironments,
   removeEnvironment,
-  resolveEnvironment
+  resolveEnvironment,
+  setEnvironmentDisabled
 } from '../../shared/runtime-environment-store'
 import {
   redactRuntimeEnvironment,
@@ -26,9 +27,11 @@ import {
 import {
   clearRuntimeEnvironmentManualDisconnect,
   isRuntimeEnvironmentManuallyDisconnected,
+  isRuntimeEnvironmentDisabled,
   markRuntimeEnvironmentManuallyDisconnected,
-  RUNTIME_MANUALLY_DISCONNECTED_MESSAGE
+  runtimeEnvironmentInactiveError
 } from './runtime-environment-manual-disconnect'
+import { applyRuntimeEnvironmentDisabledPreferences } from './runtime-environment-disabled-state'
 import {
   callRuntimeEnvironment,
   getRuntimeEnvironmentStatus
@@ -41,10 +44,7 @@ function manuallyDisconnectedResponse(
   return {
     id: 'runtime.manualDisconnect',
     ok: false,
-    error: {
-      code: 'runtime_manually_disconnected',
-      message: RUNTIME_MANUALLY_DISCONNECTED_MESSAGE
-    },
+    error: runtimeEnvironmentInactiveError(environment.id),
     _meta: { runtimeId: environment.runtimeId }
   }
 }
@@ -134,10 +134,31 @@ export function registerRuntimeEnvironmentConnectivityHandlers({
       args: { selector: string; timeoutMs?: number }
     ): Promise<RuntimeRpcResponse<RuntimeStatus>> => {
       const environment = resolveEnvironment(getUserDataPath(), args.selector)
+      if (isRuntimeEnvironmentDisabled(environment.id)) {
+        return manuallyDisconnectedResponse(environment)
+      }
       clearRuntimeEnvironmentManualDisconnect(environment.id)
       return getRuntimeEnvironmentStatus(getUserDataPath(), environment.id, args.timeoutMs, {
         reconnect: true
       })
+    }
+  )
+  ipcMain.handle(
+    'runtimeEnvironments:setDisabled',
+    (
+      _event,
+      args: { selector: string; disabled: boolean }
+    ): { environment: PublicKnownRuntimeEnvironment } => {
+      const environment = resolveEnvironment(getUserDataPath(), args.selector)
+      if (args.disabled && store.getSettings().activeRuntimeEnvironmentId === environment.id) {
+        throw new Error('Choose another Active Server in Advanced before disabling this server.')
+      }
+      const updated = setEnvironmentDisabled(getUserDataPath(), environment.id, args.disabled)
+      applyRuntimeEnvironmentDisabledPreferences(getUserDataPath(), invalidateTransport)
+      if (args.disabled) {
+        closeLegacySelectorTransport(args.selector, environment.id)
+      }
+      return { environment: redactRuntimeEnvironment(updated) }
     }
   )
   ipcMain.handle(

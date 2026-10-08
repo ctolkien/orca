@@ -77,6 +77,8 @@ vi.mock('./runtime-environment-request-connections', async () => {
 })
 
 import { registerRuntimeEnvironmentHandlers } from './runtime-environments'
+import { callRuntimeEnvironment } from './runtime-environment-transport-routing'
+import { syncRuntimeEnvironmentDisabledIds } from './runtime-environment-manual-disconnect'
 import { channelHandlerLookup, pairingCode } from './runtime-environments-ipc-test-harness'
 
 const handler = channelHandlerLookup(handleMock)
@@ -672,5 +674,95 @@ describe('registerRuntimeEnvironmentHandlers', () => {
     await expect(bg1).resolves.toMatchObject({ ok: true })
     await expect(bg2).resolves.toMatchObject({ ok: true })
     await expect(bg3).resolves.toMatchObject({ ok: true })
+  })
+  it('never dials a disabled host, from IPC or from main-side callers, until it is enabled', async () => {
+    registerRuntimeEnvironmentHandlers(store as never)
+    sendRemoteRuntimeRequestMock.mockResolvedValue({
+      id: 'status',
+      ok: true,
+      result: { runtimeId: 'runtime-remote', capabilities: [] },
+      _meta: { runtimeId: 'runtime-remote' }
+    })
+    const add = handler<
+      { name: string; pairingCode: string },
+      { environment: { id: string; name: string } }
+    >('runtimeEnvironments:addFromPairingCode')
+    const { environment } = await add(null, { name: 'laptop', pairingCode: pairingCode() })
+    const setDisabled = handler<
+      { selector: string; disabled: boolean },
+      { environment: { id: string; disabled?: true } }
+    >('runtimeEnvironments:setDisabled')
+
+    expect(await setDisabled(null, { selector: 'laptop', disabled: true })).toMatchObject({
+      environment: { id: environment.id, disabled: true }
+    })
+    expect(closeRemoteRuntimeRequestConnectionMock).toHaveBeenCalledWith(environment.id)
+
+    const call = handler<{ selector: string; method: string }, RuntimeRpcResponse<unknown>>(
+      'runtimeEnvironments:call'
+    )
+    const getStatus = handler<{ selector: string }, RuntimeRpcResponse<unknown>>(
+      'runtimeEnvironments:getStatus'
+    )
+    const connect = handler<{ selector: string }, RuntimeRpcResponse<unknown>>(
+      'runtimeEnvironments:connect'
+    )
+    const disabledFailure = { ok: false, error: { code: 'runtime_disabled' } }
+    await expect(call(null, { selector: 'laptop', method: 'repo.list' })).resolves.toMatchObject(
+      disabledFailure
+    )
+    await expect(
+      callRuntimeEnvironment(userDataPath, environment.id, 'repo.list', undefined)
+    ).resolves.toMatchObject(disabledFailure)
+    await expect(getStatus(null, { selector: 'laptop' })).resolves.toMatchObject(disabledFailure)
+    await expect(connect(null, { selector: 'laptop' })).resolves.toMatchObject(disabledFailure)
+    expect(sendRemoteRuntimeRequestMock).not.toHaveBeenCalled()
+    expect(sendRemoteRuntimeConnectionRequestMock).not.toHaveBeenCalled()
+    expect(sendRemoteRuntimeSharedControlRequestMock).not.toHaveBeenCalled()
+
+    // A restart keeps it off: startup reloads the file before its activation loop.
+    syncRuntimeEnvironmentDisabledIds([])
+    registerRuntimeEnvironmentHandlers({
+      ...store,
+      getWorkspaceSessionHostIds: () => [],
+      removeWorkspaceSessionHost: vi.fn()
+    } as never)
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(sendRemoteRuntimeRequestMock).not.toHaveBeenCalled()
+
+    expect(await setDisabled(null, { selector: 'laptop', disabled: false })).not.toHaveProperty(
+      'environment.disabled'
+    )
+    await vi.waitFor(() =>
+      expect(sendRemoteRuntimeRequestMock).toHaveBeenCalledWith(
+        expect.objectContaining({ endpoint: 'ws://127.0.0.1:6768' }),
+        'status.get',
+        undefined,
+        15_000,
+        undefined,
+        expect.anything(),
+        ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES
+      )
+    )
+  })
+
+  it('refuses to disable the active server', async () => {
+    registerRuntimeEnvironmentHandlers(store as never)
+    const add = handler<
+      { name: string; pairingCode: string },
+      { environment: { id: string; name: string } }
+    >('runtimeEnvironments:addFromPairingCode')
+    const { environment } = await add(null, { name: 'desk', pairingCode: pairingCode() })
+    activeRuntimeEnvironmentId = environment.id
+
+    const setDisabled = handler<{ selector: string; disabled: boolean }, unknown>(
+      'runtimeEnvironments:setDisabled'
+    )
+    expect(() => setDisabled(null, { selector: 'desk', disabled: true })).toThrow(
+      'Choose another Active Server'
+    )
+    expect(environmentStore.resolveEnvironment(userDataPath, environment.id)).not.toHaveProperty(
+      'disabled'
+    )
   })
 })

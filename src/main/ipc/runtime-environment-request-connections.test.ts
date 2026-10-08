@@ -10,7 +10,8 @@ import {
 } from './runtime-environment-capability-evidence'
 import {
   clearRuntimeEnvironmentManualDisconnect,
-  markRuntimeEnvironmentManuallyDisconnected
+  markRuntimeEnvironmentManuallyDisconnected,
+  syncRuntimeEnvironmentDisabledIds
 } from './runtime-environment-manual-disconnect'
 import {
   closeRemoteRuntimeRequestConnection,
@@ -27,6 +28,7 @@ const ENVIRONMENT_ID = 'standing-intent-test'
 afterEach(async () => {
   closeRemoteRuntimeRequestConnection(ENVIRONMENT_ID)
   clearRuntimeEnvironmentManualDisconnect(ENVIRONMENT_ID)
+  syncRuntimeEnvironmentDisabledIds([])
   resetRuntimeEnvironmentCapabilityEvidence()
   await closeSharedControlTestServers()
 })
@@ -68,6 +70,18 @@ describe('runtime environment shared-control connection cache', () => {
   it('blocks standing creation while manual intent is disconnected', async () => {
     const server = await createSharedControlTestServer()
     markRuntimeEnvironmentManuallyDisconnected(ENVIRONMENT_ID)
+
+    ensureRemoteRuntimeSharedControlConnection(ENVIRONMENT_ID, server.pairing)
+    reconnectRemoteRuntimeSharedControlConnection(ENVIRONMENT_ID)
+    await delay(50)
+
+    expect(server.connectionCount()).toBe(0)
+    expect(getRemoteRuntimeSharedControlDiagnostics(ENVIRONMENT_ID)).toBeNull()
+  })
+
+  it('blocks standing creation for a disabled host', async () => {
+    const server = await createSharedControlTestServer()
+    syncRuntimeEnvironmentDisabledIds([ENVIRONMENT_ID])
 
     ensureRemoteRuntimeSharedControlConnection(ENVIRONMENT_ID, server.pairing)
     reconnectRemoteRuntimeSharedControlConnection(ENVIRONMENT_ID)

@@ -34,6 +34,7 @@ vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => [] } }))
 
 import { getRuntimeEnvironmentStatus } from './runtime-environment-transport-routing'
 import { resetRuntimeEnvironmentStatusOwners } from './runtime-environment-request-connections'
+import { syncRuntimeEnvironmentDisabledIds } from './runtime-environment-manual-disconnect'
 
 let directory: string
 let envId: string
@@ -50,6 +51,7 @@ beforeEach(() => {
   mocks.diagnostics.mockReturnValue(null)
 })
 afterEach(() => {
+  syncRuntimeEnvironmentDisabledIds([])
   resetRuntimeEnvironmentStatusOwners()
   rmSync(directory, { recursive: true, force: true })
 })
@@ -107,4 +109,22 @@ it('does not fence another environment or a fresh probe after retirement', async
   await expect(getRuntimeEnvironmentStatus(directory, envId)).resolves.toMatchObject({ ok: true })
   expect(resolveEnvironment(directory, envId).runtimeId).toBe('old-host')
   expect(mocks.ensure).toHaveBeenCalledTimes(2)
+})
+
+it('never establishes control from a probe that settles after the host was disabled', async () => {
+  const pending = Promise.withResolvers<unknown>()
+  mocks.request.mockReturnValue(pending.promise)
+  const probe = getRuntimeEnvironmentStatus(directory, envId)
+  await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledOnce())
+
+  syncRuntimeEnvironmentDisabledIds([envId])
+  pending.resolve(response())
+  await probe
+
+  expect(mocks.ensure).not.toHaveBeenCalled()
+  await expect(getRuntimeEnvironmentStatus(directory, envId)).resolves.toMatchObject({
+    ok: false,
+    error: { code: 'runtime_disabled' }
+  })
+  expect(mocks.request).toHaveBeenCalledOnce()
 })

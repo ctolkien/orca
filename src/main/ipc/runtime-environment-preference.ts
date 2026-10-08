@@ -2,7 +2,12 @@ import { watch, type FSWatcher } from 'node:fs'
 import { basename } from 'node:path'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import { getEnvironmentStorePath, listEnvironments } from '../../shared/runtime-environment-store'
+import { getRuntimeEnvironmentPreferencesPath } from '../../shared/runtime-environment-preferences'
 import type { Store } from '../persistence'
+import {
+  applyRuntimeEnvironmentDisabledPreferences,
+  type InvalidateRuntimeEnvironmentTransport
+} from './runtime-environment-disabled-state'
 
 type PreferenceStore = Pick<Store, 'getSettings' | 'updateSettings'>
 
@@ -39,9 +44,11 @@ export function readSettingsWithRuntimeEnvironmentPreference(
 
 export function watchRuntimeEnvironmentPreference(
   store: PreferenceStore,
-  userDataPath: string
+  userDataPath: string,
+  invalidateTransport?: InvalidateRuntimeEnvironmentTransport
 ): () => void {
   const registryName = basename(getEnvironmentStorePath(userDataPath))
+  const preferencesName = basename(getRuntimeEnvironmentPreferencesPath(userDataPath))
   const repairPreference = (): void => {
     try {
       readSettingsWithRuntimeEnvironmentPreference(store, userDataPath)
@@ -49,14 +56,34 @@ export function watchRuntimeEnvironmentPreference(
       console.warn('[runtime-environments] Active Server preference repair failed:', error)
     }
   }
+  // The CLI writes the preferences file directly; apply its enable/disable to the running app.
+  const applyDisabled = (): void => {
+    if (!invalidateTransport) {
+      return
+    }
+    try {
+      applyRuntimeEnvironmentDisabledPreferences(userDataPath, invalidateTransport)
+    } catch (error) {
+      console.warn('[runtime-environments] disabled-host preference apply failed:', error)
+    }
+  }
+  const reconcile = (): void => {
+    repairPreference()
+    applyDisabled()
+  }
   // Reconcile changes made while the native watch was being installed.
-  const initialCheck = setImmediate(repairPreference)
+  const initialCheck = setImmediate(reconcile)
   let watcher: FSWatcher | undefined
   try {
     // Watch the directory because registry writes atomically replace the file.
     watcher = watch(userDataPath, { persistent: false }, (_event, filename) => {
-      if (filename === null || filename.toString() === registryName) {
+      const name = filename === null ? null : filename.toString()
+      if (name === null) {
+        reconcile()
+      } else if (name === registryName) {
         repairPreference()
+      } else if (name === preferencesName) {
+        applyDisabled()
       }
     })
     watcher.on('error', (error) => {

@@ -4,7 +4,10 @@ import type { RuntimeRpcResponse } from '../../shared/runtime-rpc-envelope'
 import type { RuntimeStatus } from '../../shared/runtime-types'
 import { getRuntimeEnvironmentCapabilityIncarnation } from './runtime-environment-capability-evidence'
 import { getRuntimeEnvironmentStatusOwner } from './runtime-environment-request-connections'
-import { isRuntimeEnvironmentManuallyDisconnected } from './runtime-environment-manual-disconnect'
+import {
+  isRuntimeEnvironmentManuallyDisconnected,
+  runtimeEnvironmentInactiveError
+} from './runtime-environment-manual-disconnect'
 import { runtimeEnvironmentChangedFailure } from './runtime-environment-revision-guard'
 import { attachRemoteControlDiagnostics } from './runtime-environment-status-diagnostics'
 import { withTailscaleHintForResponse } from './runtime-environment-tailscale-response'
@@ -20,10 +23,7 @@ export async function getRuntimeEnvironmentStatus(
     return {
       id: 'status.get',
       ok: false,
-      error: {
-        code: 'runtime_manually_disconnected',
-        message: 'Runtime environment is manually disconnected.'
-      }
+      error: runtimeEnvironmentInactiveError(environment.id)
     }
   }
   const incarnation = getRuntimeEnvironmentCapabilityIncarnation(environment.id)

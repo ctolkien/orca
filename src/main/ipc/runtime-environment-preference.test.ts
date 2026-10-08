@@ -8,14 +8,36 @@ import {
   addEnvironmentFromPairingCode,
   getEnvironmentStorePath,
   listEnvironments,
-  removeEnvironment
+  removeEnvironment,
+  setEnvironmentDisabled
 } from '../../shared/runtime-environment-store'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import type { Store } from '../persistence'
+import { RUNTIME_ENVIRONMENTS_CHANGED_CHANNEL } from '../../shared/runtime-host-status'
 import {
   readSettingsWithRuntimeEnvironmentPreference,
   watchRuntimeEnvironmentPreference
 } from './runtime-environment-preference'
+import {
+  isRuntimeEnvironmentDisabled,
+  syncRuntimeEnvironmentDisabledIds
+} from './runtime-environment-manual-disconnect'
+
+const { activateMock, sendMock } = vi.hoisted(() => ({
+  activateMock: vi.fn(),
+  sendMock: vi.fn()
+}))
+
+vi.mock('electron', () => ({
+  BrowserWindow: {
+    getAllWindows: () => [{ isDestroyed: () => false, webContents: { send: sendMock } }]
+  }
+}))
+
+vi.mock('./runtime-environment-request-connections', () => ({
+  closeRemoteRuntimeRequestConnection: vi.fn(),
+  getRuntimeEnvironmentStatusOwner: () => ({ activate: activateMock })
+}))
 
 let userDataPath: string
 
@@ -175,5 +197,38 @@ describe('Active Server after a saved host is removed', () => {
     expect(() => listEnvironments(userDataPath, { requireStoreFile: true })).toThrow(
       'Could not read Orca environments'
     )
+  })
+})
+
+describe('CLI enable and disable in a running app', () => {
+  beforeEach(() => {
+    syncRuntimeEnvironmentDisabledIds([])
+    activateMock.mockReset()
+    sendMock.mockReset()
+  })
+
+  it('tears down a host the CLI disables and reactivates it when the CLI enables it', async () => {
+    const environment = saveEnvironment()
+    const invalidateTransport = vi.fn()
+    const stopWatching = watchRuntimeEnvironmentPreference(
+      preferenceStore(null),
+      userDataPath,
+      invalidateTransport
+    )
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      setEnvironmentDisabled(userDataPath, environment.id, true)
+      await vi.waitFor(() => expect(invalidateTransport).toHaveBeenCalledWith(environment.id), {
+        timeout: 5_000
+      })
+      expect(isRuntimeEnvironmentDisabled(environment.id)).toBe(true)
+      expect(sendMock).toHaveBeenCalledWith(RUNTIME_ENVIRONMENTS_CHANGED_CHANNEL)
+
+      setEnvironmentDisabled(userDataPath, environment.id, false)
+      await vi.waitFor(() => expect(activateMock).toHaveBeenCalled(), { timeout: 5_000 })
+      expect(isRuntimeEnvironmentDisabled(environment.id)).toBe(false)
+    } finally {
+      stopWatching()
+    }
   })
 })
