@@ -74,11 +74,13 @@ function renderRow(): void {
       switching={false}
       disconnecting={false}
       removing={false}
+      togglingDisabled={false}
       isBusy={false}
       onOpenUpdate={vi.fn()}
       onDisconnect={vi.fn()}
       onConnect={vi.fn()}
       onRemove={vi.fn()}
+      onToggleDisabled={vi.fn()}
     />
   )
 }

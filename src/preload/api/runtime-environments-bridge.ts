@@ -1,5 +1,6 @@
 import { ipcRenderer } from 'electron'
 import {
+  RUNTIME_ENVIRONMENTS_CHANGED_CHANNEL,
   RUNTIME_HOST_STATUS_CHANNEL,
   type RuntimeHostStatusSnapshot
 } from '../../shared/runtime-host-status'
@@ -27,6 +28,11 @@ export const runtimeEnvironmentsApi = {
     ipcRenderer.on(RUNTIME_HOST_STATUS_CHANNEL, listener)
     return () => ipcRenderer.removeListener(RUNTIME_HOST_STATUS_CHANNEL, listener)
   },
+  onListChanged: (callback: () => void): (() => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on(RUNTIME_ENVIRONMENTS_CHANGED_CHANNEL, listener)
+    return () => ipcRenderer.removeListener(RUNTIME_ENVIRONMENTS_CHANGED_CHANNEL, listener)
+  },
   list: (): Promise<PublicKnownRuntimeEnvironment[]> =>
     ipcRenderer.invoke('runtimeEnvironments:list'),
   addFromPairingCode: (args: {
@@ -44,6 +50,11 @@ export const runtimeEnvironmentsApi = {
     ipcRenderer.invoke('runtimeEnvironments:resolve', args),
   remove: (args: { selector: string }): Promise<{ removed: PublicKnownRuntimeEnvironment }> =>
     ipcRenderer.invoke('runtimeEnvironments:remove', args),
+  setDisabled: (args: {
+    selector: string
+    disabled: boolean
+  }): Promise<{ environment: PublicKnownRuntimeEnvironment }> =>
+    ipcRenderer.invoke('runtimeEnvironments:setDisabled', args),
   disconnect: (args: {
     selector: string
   }): Promise<{ disconnected: PublicKnownRuntimeEnvironment }> =>

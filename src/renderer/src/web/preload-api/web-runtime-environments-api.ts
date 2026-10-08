@@ -34,6 +34,8 @@ export function createRuntimeEnvironmentsApi(): NonNullable<
 > {
   return {
     onStatusChanged: subscribeWebRuntimeStatus,
+    // The web client has no persisted host preferences, so its list never changes behind it.
+    onListChanged: () => () => {},
     getStatusSnapshots: async () => readWebRuntimeStatusSnapshots(),
     list: async () => {
       const environment = requireActiveEnvironmentOrNull()
@@ -173,6 +175,9 @@ export function createRuntimeEnvironmentsApi(): NonNullable<
       }
       manuallyDisconnectedEnvironmentIds.delete(environment.id)
       return { removed: redactStoredWebRuntimeEnvironment(environment) }
+    },
+    setDisabled: async () => {
+      throw new Error('Disabling a server is only available in the desktop app.')
     },
     disconnect: async ({ selector }) => {
       const environment = resolveEnvironment(selector)

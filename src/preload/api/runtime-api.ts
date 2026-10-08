@@ -81,6 +81,8 @@ export type RuntimeApi = {
   runtimeEnvironments: {
     getStatusSnapshots: () => Promise<RuntimeHostStatusSnapshot[]>
     onStatusChanged: (callback: (snapshot: RuntimeHostStatusSnapshot) => void) => () => void
+    /** Fires when the saved host list or a host's disabled flag changed outside this renderer. */
+    onListChanged: (callback: () => void) => () => void
     list: () => Promise<PublicKnownRuntimeEnvironment[]>
     addFromPairingCode: (args: {
       name: string
@@ -93,6 +95,11 @@ export type RuntimeApi = {
     }) => Promise<VerifyAndAddRuntimeEnvironmentResult>
     resolve: (args: { selector: string }) => Promise<PublicKnownRuntimeEnvironment>
     remove: (args: { selector: string }) => Promise<{ removed: PublicKnownRuntimeEnvironment }>
+    /** Persisted across restarts; refuses the active server. */
+    setDisabled: (args: {
+      selector: string
+      disabled: boolean
+    }) => Promise<{ environment: PublicKnownRuntimeEnvironment }>
     disconnect: (args: {
       selector: string
     }) => Promise<{ disconnected: PublicKnownRuntimeEnvironment }>

@@ -80,7 +80,10 @@ export function useRuntimeEnvironmentCatalog(): RuntimeEnvironmentCatalog {
         }
         await Promise.allSettled(
           visibleEnvironments
-            .filter((environment) => environment.id !== verified?.environmentId)
+            // A disabled host is never probed; its row shows Disabled instead of a status.
+            .filter(
+              (environment) => environment.id !== verified?.environmentId && !environment.disabled
+            )
             .map(async (environment) => {
               try {
                 const response = await window.api.runtimeEnvironments.getStatus({
@@ -148,6 +151,12 @@ export function useRuntimeEnvironmentCatalog(): RuntimeEnvironmentCatalog {
   useEffect(() => {
     void loadEnvironments()
   }, [loadEnvironments])
+
+  // `orca host enable/disable` writes the file behind this pane; main tells us to re-list.
+  useEffect(
+    () => window.api.runtimeEnvironments.onListChanged(() => void loadEnvironments()),
+    [loadEnvironments]
+  )
 
   return {
     environments,

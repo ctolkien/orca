@@ -27,6 +27,7 @@ type RuntimeServersConnectSectionProps = {
   switchingValue: string | null
   disconnectingId: string | null
   removingId: string | null
+  togglingDisabledId: string | null
   onOpenAddServerForm: () => void
   onCloseAddServerForm: () => void
   onNameChange: (value: string) => void
@@ -37,6 +38,7 @@ type RuntimeServersConnectSectionProps = {
   onConnect: (environment: PublicKnownRuntimeEnvironment) => void
   onDisconnect: (environment: PublicKnownRuntimeEnvironment) => void
   onRemove: (environment: PublicKnownRuntimeEnvironment) => void
+  onToggleDisabled: (environment: PublicKnownRuntimeEnvironment, disabled: boolean) => void
 }
 
 export function RuntimeServersConnectSection({
@@ -56,6 +58,7 @@ export function RuntimeServersConnectSection({
   switchingValue,
   disconnectingId,
   removingId,
+  togglingDisabledId,
   onOpenAddServerForm,
   onCloseAddServerForm,
   onNameChange,
@@ -65,7 +68,8 @@ export function RuntimeServersConnectSection({
   refreshRemoteServerUpdates,
   onConnect,
   onDisconnect,
-  onRemove
+  onRemove,
+  onToggleDisabled
 }: RuntimeServersConnectSectionProps): React.JSX.Element {
   const updateCheckHint = getUpdateCheckHint()
   return (
@@ -172,11 +176,13 @@ export function RuntimeServersConnectSection({
                 switching={switchingValue === environment.id}
                 disconnecting={disconnectingId === environment.id}
                 removing={removingId === environment.id}
+                togglingDisabled={togglingDisabledId === environment.id}
                 isBusy={isBusy}
                 onOpenUpdate={onOpenUpdateDialog}
                 onConnect={onConnect}
                 onDisconnect={onDisconnect}
                 onRemove={onRemove}
+                onToggleDisabled={onToggleDisabled}
               />
             ))}
           </div>

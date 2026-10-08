@@ -116,6 +116,28 @@ describe('remote server updates mixed inventory', () => {
     expect(store.getState().remoteServerUpdatesChecking).toBe(false)
   })
 
+  it('never probes a disabled server for updates', async () => {
+    const asleep = { ...environment('asleep'), disabled: true as const }
+    vi.stubGlobal('window', {
+      api: {
+        updater: { getVersion: vi.fn(async () => '1.5.0') },
+        runtimeEnvironments: { list: vi.fn(async () => [...environments, asleep]), getStatus, call }
+      },
+      setTimeout
+    })
+    const createSlice = createRemoteServerUpdatesSlice as unknown as StateCreator<TestState>
+    const store = create<TestState>()((...args) => ({
+      ...createSlice(...args),
+      setRuntimeEnvironments
+    }))
+
+    await store.getState().refreshRemoteServerUpdates()
+
+    expect(store.getState().remoteServerUpdates.has('asleep')).toBe(false)
+    expect(getStatus).not.toHaveBeenCalledWith(expect.objectContaining({ selector: 'asleep' }))
+    expect(call).not.toHaveBeenCalledWith(expect.objectContaining({ selector: 'asleep' }))
+  })
+
   it('keeps settled rows stable while checking again', async () => {
     const createSlice = createRemoteServerUpdatesSlice as unknown as StateCreator<TestState>
     const store = create<TestState>()((...args) => ({

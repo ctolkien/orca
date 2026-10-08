@@ -95,7 +95,10 @@ export const createRemoteServerUpdatesSlice: StateCreator<
     })
     try {
       const listed = await window.api.runtimeEnvironments.list()
-      const environments = listed.filter(isUserManagedRuntimeEnvironment)
+      // A disabled host is never dialed, so it has no version to check.
+      const environments = listed.filter(
+        (environment) => isUserManagedRuntimeEnvironment(environment) && !environment.disabled
+      )
       get().setRuntimeEnvironments(listed)
       const previous = get().remoteServerUpdates
       const initial = new Map(

@@ -18,6 +18,10 @@ import {
   isRuntimeEnvironmentRemovalBlocked,
   type RuntimeHostDetails
 } from './RuntimeEnvironmentsPane'
+import {
+  getRuntimeServerConnectionLabel,
+  getRuntimeServerDotClass
+} from './runtime-environment-host-details'
 
 function details(overrides: Partial<RuntimeHostDetails>): RuntimeHostDetails {
   return {
@@ -300,5 +304,11 @@ describe('RuntimeEnvironmentsPane host details', () => {
     expect(isRuntimeEnvironmentRemovalBlocked('windows-2', 'windows-2')).toBe(true)
     expect(isRuntimeEnvironmentRemovalBlocked(undefined, 'windows-2')).toBe(false)
     expect(isRuntimeEnvironmentRemovalBlocked('local', 'windows-2')).toBe(false)
+  })
+
+  it('labels a disabled server as Disabled and never as connected', () => {
+    expect(getRuntimeServerConnectionLabel('disabled')).toBe('Disabled')
+    expect(getRuntimeServerDotClass('disabled')).toBe(getRuntimeServerDotClass('disconnected'))
+    expect(isRuntimeServerTransportConnected('disabled')).toBe(false)
   })
 })

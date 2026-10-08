@@ -108,6 +108,8 @@ export function RuntimeEnvironmentsPane({
   const {
     isSaving,
     removingId,
+    togglingDisabledId,
+    setEnvironmentDisabled,
     removeError,
     setRemoveError,
     name,
@@ -129,7 +131,10 @@ export function RuntimeEnvironmentsPane({
     connectEnvironment
   })
 
-  const environmentIdsKey = environments.map((environment) => environment.id).join('\n')
+  // Includes the disabled flag so toggling a host re-runs the update probe without it.
+  const environmentIdsKey = environments
+    .map((environment) => `${environment.id}${environment.disabled ? ':disabled' : ''}`)
+    .join('\n')
   useEffect(() => {
     void refreshRemoteServerUpdates()
   }, [environmentIdsKey, refreshRemoteServerUpdates])
@@ -154,6 +159,7 @@ export function RuntimeEnvironmentsPane({
     connectingId !== null ||
     switchingValue !== null ||
     removingId !== null ||
+    togglingDisabledId !== null ||
     disconnectingId !== null
   const removingActiveServer = pendingRemove
     ? isRuntimeEnvironmentRemovalBlocked(settings.activeRuntimeEnvironmentId, pendingRemove.id)
@@ -221,6 +227,7 @@ export function RuntimeEnvironmentsPane({
         switchingValue={switchingValue}
         disconnectingId={disconnectingId}
         removingId={removingId}
+        togglingDisabledId={togglingDisabledId}
         onOpenAddServerForm={() => setAddServerFormOpen(true)}
         onCloseAddServerForm={closeAddServerForm}
         onNameChange={setName}
@@ -234,6 +241,9 @@ export function RuntimeEnvironmentsPane({
         onConnect={(environment) => void connectEnvironment(environment)}
         onDisconnect={(environment) => void disconnectEnvironment(environment)}
         onRemove={openRemoveDialog}
+        onToggleDisabled={(environment, disabled) =>
+          void setEnvironmentDisabled(environment, disabled)
+        }
       />
 
       <div className={cn('space-y-5 pt-2', visibleWorkflow !== 'cloud-vm' && 'hidden')}>

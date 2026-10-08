@@ -11,6 +11,7 @@ import {
 } from '@/runtime/runtime-host-connection-state'
 import { useAppStore } from '@/store'
 import { Button } from '../ui/button'
+import { Switch } from '../ui/switch'
 import {
   getHostDetailsDescription,
   getHostDetailsSummary,
@@ -36,11 +37,13 @@ type RuntimeServerRowProps = {
   switching: boolean
   disconnecting: boolean
   removing: boolean
+  togglingDisabled: boolean
   isBusy: boolean
   onOpenUpdate: () => void
   onDisconnect: (environment: PublicKnownRuntimeEnvironment) => void
   onConnect: (environment: PublicKnownRuntimeEnvironment) => void
   onRemove: (environment: PublicKnownRuntimeEnvironment) => void
+  onToggleDisabled: (environment: PublicKnownRuntimeEnvironment, disabled: boolean) => void
 }
 
 export function RuntimeServerRow({
@@ -53,11 +56,13 @@ export function RuntimeServerRow({
   switching,
   disconnecting,
   removing,
+  togglingDisabled,
   isBusy,
   onOpenUpdate,
   onDisconnect,
   onConnect,
-  onRemove
+  onRemove,
+  onToggleDisabled
 }: RuntimeServerRowProps): React.JSX.Element {
   const runtimeStatusEntry = useAppStore((state) =>
     state.runtimeStatusByEnvironmentId.get(environment.id)
@@ -88,13 +93,16 @@ export function RuntimeServerRow({
       }
     : details
   const detailsDescription = getHostDetailsDescription(effectiveDetails)
-  const connectionState =
-    details?.status === 'loading' && !runtimeStatusEntry?.status
+  const isDisabled = environment.disabled === true
+  // A disabled host is never probed, so any status shown would be stale or a perpetual Checking.
+  const connectionState = isDisabled
+    ? 'disabled'
+    : details?.status === 'loading' && !runtimeStatusEntry?.status
       ? 'checking'
       : getRuntimeServerConnectionState(effectiveDetails)
   // A connected host exposes Disconnect; otherwise Connect.
   const isReachable = isRuntimeServerTransportConnected(connectionState)
-  const actionBusy = connecting || switching || disconnecting || removing
+  const actionBusy = connecting || switching || disconnecting || removing || togglingDisabled
   // Why: the snapshot keeps the last answered status across a lost probe; `status` is only the latest answer.
   const descriptorStatus = lastVerifiedRuntimeStatus(runtimeStatusEntry)
   const hostDisplay = resolveHostDisplay({
@@ -119,7 +127,7 @@ export function RuntimeServerRow({
           <span className="text-[11px] text-muted-foreground">
             {getRuntimeServerConnectionLabel(connectionState)}
           </span>
-          {effectiveDetails?.compatibility?.kind === 'blocked' ? (
+          {isDisabled ? null : effectiveDetails?.compatibility?.kind === 'blocked' ? (
             <AlertTriangle className="size-3.5 shrink-0 text-destructive" />
           ) : effectiveDetails?.status === 'loading' ? (
             <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
@@ -129,19 +137,24 @@ export function RuntimeServerRow({
           <p className="truncate text-xs text-muted-foreground">{hostDescriptorText}</p>
         ) : null}
         <p className="truncate text-xs text-muted-foreground">
-          {environment.connectionDependency === 'ssh-tunnel'
+          {isDisabled
             ? translate(
-                'auto.components.settings.RuntimeEnvironmentsPane.sshTunnelRequired',
-                'SSH tunnel required'
+                'auto.components.settings.RuntimeEnvironmentsPane.disabledServerRowHelp',
+                'Orca will not connect to this server until you enable it.'
               )
-            : isActive
+            : environment.connectionDependency === 'ssh-tunnel'
               ? translate(
-                  'auto.components.settings.RuntimeEnvironmentsPane.activeServerRowHelp',
-                  'Active server for server-routed projects, terminals, and provider checks.'
+                  'auto.components.settings.RuntimeEnvironmentsPane.sshTunnelRequired',
+                  'SSH tunnel required'
                 )
-              : getHostDetailsSummary(effectiveDetails)}
+              : isActive
+                ? translate(
+                    'auto.components.settings.RuntimeEnvironmentsPane.activeServerRowHelp',
+                    'Active server for server-routed projects, terminals, and provider checks.'
+                  )
+                : getHostDetailsSummary(effectiveDetails)}
         </p>
-        {detailsDescription ? (
+        {detailsDescription && !isDisabled ? (
           <p
             className={cn(
               'mt-0.5 truncate text-xs',
@@ -191,7 +204,7 @@ export function RuntimeServerRow({
             {translate('auto.components.settings.RuntimeEnvironmentsPane.updateServer', 'Update')}
           </Button>
         ) : null}
-        {isReachable ? (
+        {isDisabled ? null : isReachable ? (
           <Button
             type="button"
             variant="ghost"
@@ -224,6 +237,16 @@ export function RuntimeServerRow({
             {translate('auto.components.settings.RuntimeEnvironmentsPane.connect', 'Connect')}
           </Button>
         )}
+        <Switch
+          checked={!isDisabled}
+          onCheckedChange={(checked) => onToggleDisabled(environment, !checked)}
+          disabled={actionBusy}
+          aria-label={translate(
+            'auto.components.settings.RuntimeEnvironmentsPane.serverEnabledToggle',
+            '{{value0}} enabled',
+            { value0: environment.name }
+          )}
+        />
         <Button
           type="button"
           variant="ghost"

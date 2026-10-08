@@ -171,7 +171,8 @@ export function isRuntimeEnvironmentRemovalBlocked(
   return activeRuntimeEnvironmentId === environmentId
 }
 
-export type RuntimeServerConnectionState = RuntimeHostConnectionState
+// 'disabled' is the user's persisted choice, not a connection outcome, so it stays Settings-only.
+export type RuntimeServerConnectionState = RuntimeHostConnectionState | 'disabled'
 
 export function getRuntimeServerConnectionState(
   details: RuntimeHostDetails | undefined
@@ -203,7 +204,7 @@ export function getRuntimeServerConnectionState(
 }
 
 export function isRuntimeServerTransportConnected(state: RuntimeServerConnectionState): boolean {
-  return isConnectedRuntimeHostState(state)
+  return state !== 'disabled' && isConnectedRuntimeHostState(state)
 }
 
 export function getRuntimeServerConnectionLabel(state: RuntimeServerConnectionState): string {
@@ -238,6 +239,11 @@ export function getRuntimeServerConnectionLabel(state: RuntimeServerConnectionSt
         'auto.components.settings.RuntimeEnvironmentsPane.serverDisconnected',
         'Disconnected'
       )
+    case 'disabled':
+      return translate(
+        'auto.components.settings.RuntimeEnvironmentsPane.serverDisabled',
+        'Disabled'
+      )
   }
 }
 
@@ -251,6 +257,7 @@ export function getRuntimeServerDotClass(state: RuntimeServerConnectionState): s
     case 'reconnecting':
       return 'bg-yellow-500'
     case 'disconnected':
+    case 'disabled':
       return 'bg-muted-foreground/40'
   }
 }

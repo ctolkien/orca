@@ -32,6 +32,7 @@ export function useRuntimeEnvironmentMutationActions({
   const [isSaving, setIsSaving] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [removeError, setRemoveError] = useState<string | null>(null)
+  const [togglingDisabledId, setTogglingDisabledId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [pairingCode, setPairingCode] = useState('')
   const [addServerFailure, setAddServerFailure] = useState<RuntimeHostAccessFailure | null>(null)
@@ -176,9 +177,53 @@ export function useRuntimeEnvironmentMutationActions({
     }
   }
 
+  const setEnvironmentDisabled = async (
+    environment: PublicKnownRuntimeEnvironment,
+    disabled: boolean
+  ): Promise<boolean> => {
+    // Mirrors the main-process guard: the active server routes requests, so it cannot go dark.
+    if (
+      disabled &&
+      isRuntimeEnvironmentRemovalBlocked(settings.activeRuntimeEnvironmentId, environment.id)
+    ) {
+      toast.error(
+        translate(
+          'auto.components.settings.RuntimeEnvironmentsPane.disableActiveServerBlocked',
+          'Choose another Active Server in Advanced before disabling this server.'
+        )
+      )
+      return false
+    }
+    setTogglingDisabledId(environment.id)
+    try {
+      await window.api.runtimeEnvironments.setDisabled({ selector: environment.id, disabled })
+      await loadEnvironments()
+      return true
+    } catch (error) {
+      if (mountedRef.current) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : translate(
+                'auto.components.settings.RuntimeEnvironmentsPane.toggleServerDisabledFailed',
+                'Failed to update {{value0}}.',
+                { value0: environment.name }
+              )
+        )
+      }
+      return false
+    } finally {
+      if (mountedRef.current) {
+        setTogglingDisabledId(null)
+      }
+    }
+  }
+
   return {
     isSaving,
     removingId,
+    togglingDisabledId,
+    setEnvironmentDisabled,
     removeError,
     setRemoveError,
     name,
