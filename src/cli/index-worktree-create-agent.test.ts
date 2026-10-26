@@ -131,6 +131,8 @@ describe('orca cli worktree awareness', () => {
         'id:repo-1',
         '--name',
         'child',
+        '--parent-worktree',
+        'active',
         '--agent',
         'codex',
         '--no-terminal',

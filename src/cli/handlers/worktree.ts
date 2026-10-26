@@ -148,9 +148,6 @@ export const WORKTREE_HANDLERS: Record<string, CommandHandler> = {
       process.env.ORCA_TERMINAL_HANDLE.length > 0
         ? process.env.ORCA_TERMINAL_HANDLE
         : undefined
-    const explicitParent = await resolveCreateParentSelector(flags, cwd, client)
-    const explicitParentWorktree = explicitParent.parentWorktree
-    const explicitParentWorkspace = explicitParent.parentWorkspace
     const startupAgent = getOptionalStartupAgent(flags)
     const noTerminal = flags.get('no-terminal') === true
     if (noTerminal && startupAgent) {
@@ -159,6 +156,9 @@ export const WORKTREE_HANDLERS: Record<string, CommandHandler> = {
         'Choose either --agent or --no-terminal, not both: the agent is the first surface.'
       )
     }
+    const explicitParent = await resolveCreateParentSelector(flags, cwd, client)
+    const explicitParentWorktree = explicitParent.parentWorktree
+    const explicitParentWorkspace = explicitParent.parentWorkspace
     // Read before any request, so a bad prompt, model or effort creates nothing.
     const agentLaunch = startupAgent
       ? readCliAgentLaunch(flags, startupAgent, { createsWorktree: true })
