@@ -331,6 +331,29 @@ describe('reconcileCodexHooks', () => {
     expect(mocks.realHomeRuns).toBe(2)
   })
 
+  it('reruns a throttled spawn whose trailing recheck lands on a busy reconcile', async () => {
+    await start()
+    mocks.realHomeRuns = 0
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    scheduleCodexHookReconcile()
+    await settleSpawn()
+    scheduleCodexHookReconcile()
+
+    let release!: () => void
+    mocks.holdRealHome = new Promise((resolve) => {
+      release = resolve
+    })
+    const busy = reconcileCodexHooks()
+    await vi.waitFor(() => expect(mocks.realHomeRuns).toBe(2))
+    await vi.advanceTimersByTimeAsync(10_000)
+    mocks.holdRealHome = null
+    release()
+    await busy
+    await settleSpawn()
+
+    expect(mocks.realHomeRuns).toBe(3)
+  })
+
   it('lets a spawn ride a reconcile already running, which reads the files after it', async () => {
     await start()
     mocks.realHomeRuns = 0

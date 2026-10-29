@@ -75,10 +75,13 @@ export function scheduleCodexHookReconcile(): void {
   }
   const waitMs = lastSpawnReconcileAt + SPAWN_RECONCILE_MIN_INTERVAL_MS - Date.now()
   if (waitMs > 0) {
-    // Trailing run so a spawn inside the window is still rechecked.
+    // Trailing run so a spawn inside the window is still rechecked; a busy run reruns rather than absorbing it.
     trailingSpawnReconcile = setTimeout(() => {
       trailingSpawnReconcile = null
-      scheduleCodexHookReconcile()
+      lastSpawnReconcileAt = Date.now()
+      if (config) {
+        void reconcileCodexHooks()
+      }
     }, waitMs)
     trailingSpawnReconcile.unref?.()
     return
