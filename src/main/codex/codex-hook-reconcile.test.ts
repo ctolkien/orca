@@ -315,6 +315,22 @@ describe('reconcileCodexHooks', () => {
     expect(mocks.realHomeRuns).toBe(1)
   })
 
+  it('rechecks a burst of pane spawns once now and once after the throttle window', async () => {
+    await start()
+    mocks.realHomeRuns = 0
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+
+    for (let pane = 0; pane < 5; pane++) {
+      scheduleCodexHookReconcile()
+      await settleSpawn()
+    }
+    expect(mocks.realHomeRuns).toBe(1)
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    await settleSpawn()
+    expect(mocks.realHomeRuns).toBe(2)
+  })
+
   it('lets a spawn ride a reconcile already running, which reads the files after it', async () => {
     await start()
     mocks.realHomeRuns = 0

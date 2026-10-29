@@ -107,16 +107,20 @@ function remember(codexPath: string, known: KnownAnswer): CodexHookAnswer {
   return known.answer
 }
 
-/** Query the Codex on PATH only in app main. */
-export async function resolveCodexHookAnswer(): Promise<CodexHookAnswer> {
+/** Query the Codex on PATH only in app main; pass a path resolved after PATH hydration to skip a re-scan. */
+export async function resolveCodexHookAnswer(codexPath?: string): Promise<CodexHookAnswer> {
   // Resolve the same hydrated PATH that panes use.
   await appPathReady
-  return lookupCodexHookAnswer(resolveCodexCommand(), getManagedCommand(getManagedScriptPath()))
+  return lookupCodexHookAnswer(
+    codexPath ?? resolveCodexCommand(),
+    getManagedCommand(getManagedScriptPath())
+  )
 }
 
 /** Read status from memory or disk without spawning Codex. */
-export function readKnownCodexHookAnswer(): CodexHookAnswer | null {
-  const codexPath = resolveCodexCommand()
+export function readKnownCodexHookAnswer(
+  codexPath: string = resolveCodexCommand()
+): CodexHookAnswer | null {
   const fingerprint = fingerprintCodex(codexPath)
   if (fingerprint === null) {
     return codexNotFound(codexPath)
